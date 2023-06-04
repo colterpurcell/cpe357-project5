@@ -35,15 +35,19 @@ int main(int argc, char const *argv[])
         args[0] = malloc(96);
         args[1] = malloc(96);
         args[2] = malloc(96);
+        args[3] = NULL;
         strcpy(args[0], "./");
         strcat(args[0], argv[1]);
         strcpy(args[1], process_id);
         strcpy(args[2], total_processes);
-        args[3] = NULL;
 
         if (fork() == 0)
         {
-            exit(0);
+            execv(args[0], args);
         }
+
+        free(args[0]);
+        free(args[1]);
+        free(args[2]);
     }
 }
