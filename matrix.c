@@ -68,26 +68,28 @@ void quadratic_matrix_multiplication(float *A, float *B, float *C)
 void synch(int par_id, int par_count, int *ready)
 {
     /* TODO: synch algorithm. make sure, ALL processes get stuck here until all ARE here
-     * use the shared memory object "ready" for this. once all ready bits are 1, move on.
+     * use the shared memory object "ready" for this. once all ready bits equal one another, all processes are here
+     * values can be any positive integer, but they must be equal for all processes
      */
     int i;
-    while (1)
+    int allready = 0;
+    /* fprintf(stderr, "process %d waiting for %d\n", par_id, ready[0]); */
+
+    while (!allready)
     {
-        int all_ready = 1, match = ready[0];
+        allready = 1;
         for (i = 0; i < par_count; i++)
         {
-            if (ready[i] != match)
+            if (ready[i] != ready[0])
             {
-                all_ready = 0;
-                break;
+                allready = 0;
             }
         }
-
-        if (all_ready)
-        {
-            break;
-        }
     }
+
+    for (i = 0; i < 100000; i++)
+        ;
+    /* fprintf(stderr, "process %d ready %d\n", par_id, ready[0]); */
 }
 
 void quadratic_matrix_multiplication_parallel(int par_id, int par_count, float *A, float *B, float *C, int *ready, pthread_mutex_t *mut)
@@ -97,8 +99,8 @@ void quadratic_matrix_multiplication_parallel(int par_id, int par_count, float *
     int start = (par_id)*MATRIX_DIMENSION_XY / par_count;
     int end = (par_id + 1) * MATRIX_DIMENSION_XY / par_count;
     /* multiply */
-    for (x = 0; x < 100000; x++)
-        ;
+    /* for (x = 0; x < 100000; x++)
+        ; */
     pthread_mutex_lock(mut);
     for (x = start; x < end; x++)                     /* over all cols a */
         for (y = 0; y < MATRIX_DIMENSION_XY; y++)     /* over all rows b */
@@ -157,7 +159,7 @@ int main(int argc, char *argv[])
     else
     {
         /* TODO: init the shared memory for A,B,C, ready. shm_open withOUT C_CREAT here! NO ftruncate! but yes to mmap */ /* needed for initalizing synch */
-        sleep(1);
+        sleep(3);
         fd[0] = shm_open("/matrixA", O_RDWR, 0777);
         fd[1] = shm_open("/matrixB", O_RDWR, 0777);
         fd[2] = shm_open("/matrixC", O_RDWR, 0777);
@@ -170,26 +172,35 @@ int main(int argc, char *argv[])
     ready = mmap(NULL, sizeof(int) * par_count, PROT_READ | PROT_WRITE, MAP_SHARED, fd[3], 0);
 
     if (par_id == 0)
+    {
         reset(par_count, ready, &mutex);
+    }
 
     ready[par_id]++;
 
+    /* fprintf(stderr, "process %d hung up on synch 1\n", par_id); */
     synch(par_id, par_count, ready);
 
     if (par_id == 0)
     {
         /* TODO: initialize the matrices A and B */
         int x, y;
+        pthread_mutex_lock(&mutex);
         for (x = 0; x < MATRIX_DIMENSION_XY; x++)
             for (y = 0; y < MATRIX_DIMENSION_XY; y++)
             {
                 set_matrix_elem(A, x, y, x + y);
                 set_matrix_elem(B, x, y, x + y);
             }
+        pthread_mutex_unlock(&mutex);
+    }
+    else
+    {
+        usleep(1000);
     }
 
     ready[par_id]++;
-
+    /* fprintf(stderr, "process %d hung up on synch 2\n", par_id); */
     synch(par_id, par_count, ready);
 
     quadratic_matrix_multiplication_parallel(par_id, par_count, A, B, C, ready, &mutex);
@@ -210,10 +221,17 @@ int main(int argc, char *argv[])
         else
             printf("buuug!\n");
     }
+    else
+    {
+        usleep(1000);
+    }
 
     ready[par_id]++;
 
+    /* fprintf(stderr, "process %d hung up on synch 3\n", par_id); */
     synch(par_id, par_count, ready);
+
+    /* printf("process %d finished\n", par_id); */
 
     close(fd[0]);
     close(fd[1]);
