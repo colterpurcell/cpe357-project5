@@ -73,10 +73,10 @@ void synch(int par_id, int par_count, int *ready)
     int i;
     while (1)
     {
-        int all_ready = 1;
+        int all_ready = 1, match = ready[0];
         for (i = 0; i < par_count; i++)
         {
-            if (ready[i] != 1)
+            if (ready[i] != match)
             {
                 all_ready = 0;
                 break;
@@ -90,21 +90,23 @@ void synch(int par_id, int par_count, int *ready)
     }
 }
 
-void quadratic_matrix_multiplication_parallel(int par_id, int par_count, float *A, float *B, float *C, int *ready)
+void quadratic_matrix_multiplication_parallel(int par_id, int par_count, float *A, float *B, float *C, int *ready, pthread_mutex_t *mut)
 {
 
     int x, y, c;
     int start = (par_id)*MATRIX_DIMENSION_XY / par_count;
     int end = (par_id + 1) * MATRIX_DIMENSION_XY / par_count;
     /* multiply */
-    fprintf(stderr, "process %d accessing matrix\n", par_id);
+    for (x = 0; x < 100000; x++)
+        ;
+    pthread_mutex_lock(mut);
     for (x = start; x < end; x++)                     /* over all cols a */
         for (y = 0; y < MATRIX_DIMENSION_XY; y++)     /* over all rows b */
             for (c = 0; c < MATRIX_DIMENSION_XY; c++) /* over all rows/cols left */
             {
                 C[x + y * MATRIX_DIMENSION_XY] += A[c + y * MATRIX_DIMENSION_XY] * B[x + c * MATRIX_DIMENSION_XY];
             }
-    fprintf(stderr, "process %d leaving matrix\n", par_id);
+    pthread_mutex_unlock(mut);
 }
 
 void reset(int par_count, int *ready, pthread_mutex_t *mut)
@@ -121,7 +123,6 @@ void reset(int par_count, int *ready, pthread_mutex_t *mut)
 /************************************************************************************************************************* */
 int main(int argc, char *argv[])
 {
-    int i;
     int par_id = 0;    /* the parallel ID of this process */
     int par_count = 1; /* the amount of processes */
     float *A, *B, *C;  /* matrices A,B and C */
@@ -171,12 +172,9 @@ int main(int argc, char *argv[])
     if (par_id == 0)
         reset(par_count, ready, &mutex);
 
-    ready[par_id] = 1;
+    ready[par_id]++;
 
     synch(par_id, par_count, ready);
-
-    if (par_id == 0)
-        reset(par_count, ready, &mutex);
 
     if (par_id == 0)
     {
@@ -190,20 +188,17 @@ int main(int argc, char *argv[])
             }
     }
 
-    ready[par_id] = 1;
+    ready[par_id]++;
 
     synch(par_id, par_count, ready);
 
-    quadratic_matrix_multiplication_parallel(par_id, par_count, A, B, C, ready);
-
-    ready[par_id] = 1;
+    quadratic_matrix_multiplication_parallel(par_id, par_count, A, B, C, ready, &mutex);
 
     /* lets test the result: */
     quadratic_matrix_multiplication(A, B, M);
 
     if (par_id == 0)
     {
-        printf("here\n");
         pthread_mutex_lock(&mutex);
 
         quadratic_matrix_print(M);
@@ -215,7 +210,11 @@ int main(int argc, char *argv[])
         else
             printf("buuug!\n");
     }
-    printf("full matrix multiplication done\n");
+
+    ready[par_id]++;
+
+    synch(par_id, par_count, ready);
+
     close(fd[0]);
     close(fd[1]);
     close(fd[2]);
@@ -229,5 +228,5 @@ int main(int argc, char *argv[])
     shm_unlink("matrixC");
     shm_unlink("synchobject");
 
-    return 0;
+    exit(0);
 }
