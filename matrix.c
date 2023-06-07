@@ -1,11 +1,10 @@
-#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include <sys/shm.h>
 #include <pthread.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -146,10 +145,10 @@ int main(int argc, char *argv[])
     {
         /* TODO: init the shared memory for A,B,C, ready. shm_open with C_CREAT here! then ftruncate! then mmap */
         pthread_mutex_lock(&mutex);
-        fd[0] = shm_open("matrixA", O_CREAT | O_RDWR, 0777);
-        fd[1] = shm_open("matrixB", O_CREAT | O_RDWR, 0777);
-        fd[2] = shm_open("matrixC", O_CREAT | O_RDWR, 0777);
-        fd[3] = shm_open("synchobject", O_CREAT | O_RDWR, 0777);
+        fd[0] = shm_open("matA", O_CREAT | O_RDWR, 0777);
+        fd[1] = shm_open("matB", O_CREAT | O_RDWR, 0777);
+        fd[2] = shm_open("matC", O_CREAT | O_RDWR, 0777);
+        fd[3] = shm_open("syncobj", O_CREAT | O_RDWR, 0777);
         ftruncate(fd[0], sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY);
         ftruncate(fd[1], sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY);
         ftruncate(fd[2], sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY);
@@ -160,10 +159,10 @@ int main(int argc, char *argv[])
     {
         /* TODO: init the shared memory for A,B,C, ready. shm_open withOUT C_CREAT here! NO ftruncate! but yes to mmap */ /* needed for initalizing synch */
         sleep(3);
-        fd[0] = shm_open("/matrixA", O_RDWR, 0777);
-        fd[1] = shm_open("/matrixB", O_RDWR, 0777);
-        fd[2] = shm_open("/matrixC", O_RDWR, 0777);
-        fd[3] = shm_open("/synchobject", O_RDWR, 0777);
+        fd[0] = shm_open("matA", O_RDWR, 0777);
+        fd[1] = shm_open("matB", O_RDWR, 0777);
+        fd[2] = shm_open("matC", O_RDWR, 0777);
+        fd[3] = shm_open("syncobj", O_RDWR, 0777);
     }
 
     A = mmap(NULL, sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY, PROT_READ | PROT_WRITE, MAP_SHARED, fd[0], 0);
@@ -241,10 +240,10 @@ int main(int argc, char *argv[])
     munmap(B, sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY);
     munmap(C, sizeof(float) * MATRIX_DIMENSION_XY * MATRIX_DIMENSION_XY);
     munmap(ready, sizeof(int) * par_count);
-    shm_unlink("matrixA");
-    shm_unlink("matrixB");
-    shm_unlink("matrixC");
-    shm_unlink("synchobject");
+    shm_unlink("matA");
+    shm_unlink("matB");
+    shm_unlink("matC");
+    shm_unlink("syncobj");
 
     exit(0);
 }
